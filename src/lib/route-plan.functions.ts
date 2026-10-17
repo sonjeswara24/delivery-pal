@@ -13,7 +13,7 @@ export const planRoute = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { createAnthropic } = await import("@ai-sdk/anthropic");
     const { streamText } = await import("ai");
-    const apiKey = process.env.LOVABLE_API_KEY;
+    const apiKey = process.env["LOVABLE_API_KEY"];
     if (!apiKey) return { error: "AI is not configured." };
 
     let runId: string | undefined;

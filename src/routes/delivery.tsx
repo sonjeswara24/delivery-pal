@@ -1,7 +1,37 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, Sparkles } from "lucide-react";
 import { ORDERS, type Order } from "@/lib/orders";
+import { planRoute } from "@/lib/route-plan.functions";
+
+function RoutePlanner({ stops }: { stops: Order[] }) {
+  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async () => {
+    setLoading(true); setError(null); setPlan(null);
+    try {
+      const r = await planRoute({ data: { stops: stops.map(({ id, customer, address, item, eta }) => ({ id, customer, address, item, eta })) } });
+      if ("error" in r && r.error) setError(r.error); else setPlan(r.text ?? null);
+    } catch { setError("Couldn't generate a route plan right now."); }
+    finally { setLoading(false); }
+  };
+  return (
+    <div className="mt-8 rounded-xl bg-secondary p-6 text-secondary-foreground shadow-card">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-xl font-bold"><Sparkles className="h-5 w-5 text-primary" />Smart route plan</h2>
+          <p className="text-sm opacity-75">AI suggests the best order to deliver your pending parcels.</p>
+        </div>
+        <button disabled={loading || stops.length === 0} onClick={run} className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+          {loading ? "Planning…" : "Plan my route"}
+        </button>
+      </div>
+      {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+      {plan && <p className="mt-4 whitespace-pre-line text-sm leading-relaxed">{plan}</p>}
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/delivery")({
   head: () => ({
@@ -37,6 +67,8 @@ function Delivery() {
         <div className="mt-4 h-3 overflow-hidden rounded-full bg-muted">
           <div className="h-full bg-success transition-all" style={{ width: `${(done / orders.length) * 100}%` }} />
         </div>
+
+        <RoutePlanner stops={pending} />
 
         <h2 className="mt-10 text-xl font-bold">Pending deliveries</h2>
         <ul className="mt-4 space-y-3">

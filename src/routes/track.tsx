@@ -2,6 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { ORDERS, STEPS, type Order } from "@/lib/orders";
+import { getDriverLocation } from "@/lib/driver-location";
+import { DriverLocation } from "@/components/driver-location";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/track")({
   head: () => ({
@@ -22,6 +25,7 @@ function Track() {
   const [order, setOrder] = useState<Order | null | undefined>(undefined);
   const search = () => setOrder(ORDERS.find((o) => o.id.toLowerCase() === q.trim().toLowerCase()) ?? null);
   const idx = order ? STEPS.indexOf(order.status) : -1;
+  const driverLocation = order ? getDriverLocation(order) : null;
 
   return (
     <main className="min-h-screen px-6 py-12">
@@ -29,9 +33,9 @@ function Track() {
         <Link to="/" className="text-sm text-muted-foreground">← Back</Link>
         <h1 className="mt-4 text-4xl font-bold">Track your order</h1>
         <div className="mt-6 flex gap-2">
-          <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()}
-            placeholder="e.g. TRK1001" className="flex-1 rounded-lg border border-input bg-card px-4 py-3 outline-none focus:ring-2 focus:ring-ring" />
-          <button onClick={search} className="rounded-lg bg-primary px-6 font-semibold text-primary-foreground">Track</button>
+          <input aria-label="Tracking ID" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()}
+            placeholder="e.g. TRK1001" className="min-w-0 flex-1 rounded-lg border border-input bg-card px-4 py-3 outline-none focus:ring-2 focus:ring-ring" />
+          <Button onClick={search} className="h-auto rounded-lg px-6 font-semibold">Track</Button>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">Try TRK1001 – TRK1006</p>
 
@@ -62,6 +66,7 @@ function Track() {
               ))}
             </ol>
             <p className="mt-4 text-sm text-muted-foreground">Delivering to {order.address}</p>
+            {driverLocation && <DriverLocation location={driverLocation} />}
           </div>
         )}
       </div>

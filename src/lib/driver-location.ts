@@ -17,3 +17,9 @@ const SAMPLE_LOCATION: DriverLocation = {
 export function getDriverLocation(order: Pick<Order, "status">): DriverLocation | null {
   return order.status === "Out for delivery" ? SAMPLE_LOCATION : null;
 }
+
+export function canLoadDriverMap(protocol: string, hostname: string): boolean {
+  return protocol === "https:" &&
+    (hostname.endsWith(".lovable.app") || hostname.endsWith(".lovableproject.com")) &&
+    !hostname.includes("-devserver-");
+}

@@ -1,3 +1,4 @@
 # Driver location
 - [x] Add a sample driver location and Google Maps section for out-for-delivery tracking.
-- [ ] Verify status visibility, tracking searches, and layout; Google Maps rendering requires user validation on an authorized site.
+- [x] Verify status visibility, tracking searches, and layout (tests passed; browser checks passed at desktop and current screen sizes).
+- [ ] Validate Google Maps rendering — blocked on user testing on an authorized published site; live Maps checks are unsupported in the sandbox.

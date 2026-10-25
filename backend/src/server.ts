@@ -2,9 +2,24 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import pg from "pg";
 import { z } from "zod";
+import Redis from "ioredis";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const app = Fastify({ logger: true });
+const redis = new Redis(process.env.REDIS_URL ?? "redis://redis:6379", {
+  maxRetriesPerRequest: 1,
+});
+redis.on("error", () => {}); // the API keeps working even if Redis is down
+
+const TRACK_TTL_SECONDS = 30;
+const CACHE_ENABLED = process.env.CACHE_ENABLED !== "false";
+
+async function invalidateTrack(packageId: number) {
+  try {
+    const r = await pool.query("SELECT tracking_no FROM packages WHERE package_id = $1", [packageId]);
+    if (r.rows[0]) await redis.del(`track:${r.rows[0].tracking_no}`);
+  } catch {}
+}
 await app.register(cors, { origin: true });
 
 const STATUSES = [
@@ -41,6 +56,15 @@ app.get("/packages", async () => {
 // Track a package: details + event timeline
 app.get("/track/:trackingNo", async (req, reply) => {
   const { trackingNo } = z.object({ trackingNo: z.string().min(1) }).parse(req.params);
+  const key = `track:${trackingNo}`;
+
+  try {
+    const cached = CACHE_ENABLED ? await redis.get(key) : null;
+    if (cached) {
+      reply.header("X-Cache", "HIT");
+      return JSON.parse(cached);
+    }
+  } catch {}
 
   const pkg = await pool.query(
     `SELECT package_id, order_id, tracking_no, weight_kg, current_status,
@@ -63,7 +87,13 @@ app.get("/track/:trackingNo", async (req, reply) => {
      ORDER BY e.event_ts DESC, e.event_id DESC`,
     [pkg.rows[0].package_id]
   );
-  return { package: pkg.rows[0], events: events.rows };
+
+  const body = { package: pkg.rows[0], events: events.rows };
+  try {
+    if (CACHE_ENABLED) await redis.set(key, JSON.stringify(body), "EX", TRACK_TTL_SECONDS);
+  } catch {}
+  reply.header("X-Cache", CACHE_ENABLED ? "MISS" : "BYPASS");
+  return body;
 });
 
 // Create a package for an existing order
@@ -87,6 +117,7 @@ app.post("/packages", async (req, reply) => {
     [b.order_id, b.tracking_no, b.weight_kg, b.destination_address,
      b.destination_city, b.destination_postal_code, b.lng ?? null, b.lat ?? null]
   );
+    await invalidateTrack(id);
   return reply.code(201).send(r.rows[0]);
 });
 
@@ -109,6 +140,7 @@ app.post("/packages/:id/events", async (req, reply) => {
     [id, b.event_type, b.facility_id ?? null, b.driver_id ?? null,
      b.lng ?? null, b.lat ?? null, b.remarks ?? null]
   );
+    await invalidateTrack(id);
   return reply.code(201).send(r.rows[0]);
 });
 
@@ -135,6 +167,7 @@ app.post("/packages/:id/deliver", async (req, reply) => {
       [id, b.stop_id ?? null, b.recipient_name]
     );
     await client.query("COMMIT");
+        await invalidateTrack(id);
     return reply.code(201).send(pod.rows[0]);
   } catch (e) {
     await client.query("ROLLBACK");
